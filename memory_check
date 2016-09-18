@@ -1,0 +1,64 @@
+#!/bin/bash
+
+TOTAL_MEMORY=$( free | grep Mem | awk '{ print $2 }' )
+USED_MEMORY=$( free | grep Mem | awk '{ print $3 }' )
+PERCENT=$((200*$USED_MEMORY/$TOTAL_MEMORY % 2 + 100*$USED_MEMORY/$TOTAL_MEMORY))
+NOW=$(date +"%Y%m%d %H:%M memory check -critical")
+OUTPUT=$NOW
+
+while getopts ":c:w:e:" opt;
+do
+        case $opt in
+                c)
+                        CRITICAL=$OPTARG
+                                if ! [[ $CRITICAL =~ ^[0-9]+$ ]] || [ $CRITICAL -ge 101 ]
+                                then
+                                        echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+                                        exit
+                                fi
+                        ;;
+                w)
+                        WARNING=$OPTARG
+                                if ! [[ $WARNING =~ ^[0-9]+$ ]] || [ $WARNING -ge 101 ]
+                                then
+                                        echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+                                        exit
+                                fi
+                        ;;
+                e)
+                        EMAIL=$OPTARG
+                                if ! [[ $EMAIL == ?*@?*.?* ]]
+                                then
+                                        echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+                                        exit
+                                fi
+                        ;;
+                \?)
+                                echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+                                exit
+                        ;;
+        esac
+
+done
+
+
+if [ -z "$CRITICAL" ] || [ -z "$WARNING" ] || [ -z "$EMAIL" ]; then
+        echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+        exit
+elif [ $WARNING -ge $CRITICAL ] ; then
+        echo "critical threshold must be greater than warning threshold "
+        echo "usage -c criticalthreshold(0-100) -w warningthreshold(0-100) -e email(e.g email@mine.com)"
+        exit
+elif [ $PERCENT -ge $CRITICAL ] ; then
+        top -n 1 | sed -n 7,17p | awk '{ print $2 " " $13 }' > "$OUTPUT"
+        mail -s "$NOW" $EMAIL < "$OUTPUT"
+        rm  "$NOW"
+        exit 2
+elif [ $PERCENT -ge $WARNING ] && [ $PERCENT -lt $CRITICAL ] ; then
+        exit 1
+elif [ $PERCENT -lt $WARNING ] ; then
+        exit 0
+fi
+
+shift $((OPTIND - 1))
+
